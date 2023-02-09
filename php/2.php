@@ -9,15 +9,15 @@ class User
     /**
      * @var PDO
      */
-    public static $instance;
+    private static $instance;
 
     /**
-     * Реализация singleton
+     * Singleton implementation
      * @return PDO
      */
     public static function getInstance(): PDO
     {
-        if (is_null(self::$instance)) {
+        if (self::$instance === null) {
             $dsn = 'mysql:dbname=db;host=127.0.0.1';
             $user = 'dbuser';
             $password = 'dbpass';
@@ -28,23 +28,24 @@ class User
     }
 
     /**
-     * Возвращает список пользователей старше заданного возраста.
+     * Returns a list of users older than the specified age.
      * @param int $ageFrom
      * @return array
      */
     public static function getUsers(int $ageFrom): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE age > {$ageFrom} LIMIT " . \Manager\User::limit);
+        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from_date, age, settings FROM Users WHERE age > :ageFrom LIMIT ".\Manager\User::limit);
+        $stmt->bindValue(':ageFrom', $ageFrom, PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $users = [];
         foreach ($rows as $row) {
-            $settings = json_decode($row['settings']);
+            $settings = json_decode($row['settings'], true);
             $users[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
                 'lastName' => $row['lastName'],
-                'from' => $row['from'],
+                'from_date' => $row['from_date'],
                 'age' => $row['age'],
                 'key' => $settings['key'],
             ];
@@ -54,13 +55,14 @@ class User
     }
 
     /**
-     * Возвращает пользователя по имени.
+     * Returns a user by name.
      * @param string $name
      * @return array
      */
-    public static function user(string $name): array
+    public static function getUserByName(string $name): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE name = {$name}");
+        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from_date, age, settings FROM Users WHERE name = :name");
+        $stmt->bindValue(':name', $name, PDO::PARAM_STR);
         $stmt->execute();
         $user_by_name = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -68,22 +70,25 @@ class User
             'id' => $user_by_name['id'],
             'name' => $user_by_name['name'],
             'lastName' => $user_by_name['lastName'],
-            'from' => $user_by_name['from'],
+            'from_date' => $user_by_name['from_date'],
             'age' => $user_by_name['age'],
         ];
     }
 
     /**
-     * Добавляет пользователя в базу данных.
+     * Adds a user to the database.
      * @param string $name
      * @param string $lastName
-     * @param int $age
+     * @param int    $age
      * @return string
      */
     public static function add(string $name, string $lastName, int $age): string
     {
         $sth = self::getInstance()->prepare("INSERT INTO Users (name, lastName, age) VALUES (:name, :age, :lastName)");
-        $sth->execute([':name' => $name, ':age' => $age, ':lastName' => $lastName]);
+        $stmt->bindValue(':name', $name, PDO::PARAM_STR);
+        $stmt->bindValue(':lastName', $lastName, PDO::PARAM_STR);
+        $stmt->bindValue(':age', $age, PDO::PARAM_INT);
+        $sth->execute();
 
         return self::getInstance()->lastInsertId();
     }
